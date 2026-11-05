@@ -32,7 +32,7 @@ RUN pecl install imagick \
     && docker-php-ext-enable imagick
 
 # Enable Apache modules
-RUN a2enmod rewrite headers setenvif
+RUN a2enmod rewrite headers setenvif filter substitute
 
 # Enable .htaccess overrides
 RUN sed -i 's/AllowOverride None/AllowOverride All/g' \
@@ -58,6 +58,16 @@ ServerName localhost
 </DirectoryMatch>
 EOF
 RUN a2enconf piprapay-files
+
+# An upstream plugin emits an author email as an HTML tag outside PHP.
+# Normalize only that literal tag in HTML responses; keep PHP source intact.
+RUN cat > /etc/apache2/conf-available/piprapay-gateway-markup.conf <<'EOF'
+<Directory "/var/www/html">
+    AddOutputFilterByType SUBSTITUTE text/html
+    Substitute "s|<support@webfuran.com>|support@webfuran.com|n"
+</Directory>
+EOF
+RUN a2enconf piprapay-gateway-markup && apache2ctl -t
 
 # PHP configuration
 RUN printf "allow_url_fopen=On\nfile_uploads=On\nmemory_limit=256M\nupload_max_filesize=64M\npost_max_size=64M\nmax_execution_time=120\n" \
