@@ -38,7 +38,7 @@ RUN a2enmod rewrite headers setenvif
 RUN sed -i 's/AllowOverride None/AllowOverride All/g' \
     /etc/apache2/apache2.conf
 
-# Trust HTTPS protocol from the reverse proxy
+# Trust HTTPS protocol from reverse proxy
 RUN printf '%s\n' \
     'SetEnvIfNoCase X-Forwarded-Proto "^https$" HTTPS=on' \
     > /etc/apache2/conf-available/reverse-proxy-https.conf \
@@ -54,11 +54,28 @@ WORKDIR /var/www/html
 # Copy application files
 COPY . /var/www/html/
 
-# Set permissions
+# Set application permissions
 RUN chown -R www-data:www-data /var/www/html
+
+# Persistent configuration directory
+RUN mkdir -p /var/lib/piprapay \
+    && chown www-data:www-data /var/lib/piprapay
+
+# Startup script for persistent configuration
+RUN printf '%s\n' \
+    '#!/bin/sh' \
+    'if [ ! -f /var/lib/piprapay/pp-config.php ] && [ -f /var/www/html/pp-config.php ] && [ ! -L /var/www/html/pp-config.php ]; then' \
+    '    cp /var/www/html/pp-config.php /var/lib/piprapay/pp-config.php' \
+    'fi' \
+    'if [ -f /var/lib/piprapay/pp-config.php ]; then' \
+    '    ln -sfn /var/lib/piprapay/pp-config.php /var/www/html/pp-config.php' \
+    'fi' \
+    'exec apache2-foreground' \
+    > /usr/local/bin/start-piprapay \
+    && chmod +x /usr/local/bin/start-piprapay
 
 # Expose Apache port
 EXPOSE 80
 
 # Start Apache
-CMD ["apache2-foreground"]
+CMD ["/usr/local/bin/start-piprapay"]
