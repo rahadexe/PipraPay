@@ -1,0 +1,10 @@
+.git
+.github
+.env
+.env.*
+pp-config.php
+pp-temp-config.php
+pp-media/storage
+*.log
+*.sql.gz
+*.sql.zip

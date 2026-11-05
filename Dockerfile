@@ -1,4 +1,4 @@
-
+# syntax=docker/dockerfile:1
 FROM php:8.3-apache
 
 # Install system dependencies
@@ -44,6 +44,21 @@ RUN printf '%s\n' \
     > /etc/apache2/conf-available/reverse-proxy-https.conf \
     && a2enconf reverse-proxy-https
 
+# Keep repository metadata and generated backups off the public website.
+RUN cat > /etc/apache2/conf-available/piprapay-files.conf <<'EOF'
+ServerName localhost
+<DirectoryMatch "(^|/)\.(git|svn|hg)(/|$)">
+    Require all denied
+</DirectoryMatch>
+<FilesMatch "^(\.env(\..*)?|Dockerfile|compose\.ya?ml|docker-compose\.ya?ml)$">
+    Require all denied
+</FilesMatch>
+<DirectoryMatch "^/var/www/html/pp-media/storage/(backup|temp|updates)(/|$)">
+    Require all denied
+</DirectoryMatch>
+EOF
+RUN a2enconf piprapay-files
+
 # PHP configuration
 RUN printf "allow_url_fopen=On\nfile_uploads=On\nmemory_limit=256M\nupload_max_filesize=64M\npost_max_size=64M\nmax_execution_time=120\n" \
     > /usr/local/etc/php/conf.d/piprapay.ini
@@ -55,7 +70,8 @@ WORKDIR /var/www/html
 COPY . /var/www/html/
 
 # Application permissions
-RUN chown -R www-data:www-data /var/www/html
+RUN mkdir -p /var/www/html/pp-media/storage \
+    && chown -R www-data:www-data /var/www/html
 
 # Persistent configuration directory
 RUN mkdir -p /var/lib/piprapay \
@@ -68,9 +84,11 @@ set -eu
 
 APP_DIR="/var/www/html"
 PERSIST_DIR="/var/lib/piprapay"
+MEDIA_DIR="$APP_DIR/pp-media/storage"
 
-mkdir -p "$PERSIST_DIR"
-chown -R www-data:www-data "$PERSIST_DIR"
+# These commands run after Docker has attached the persistent volumes.
+mkdir -p "$PERSIST_DIR" "$MEDIA_DIR"
+chown -R www-data:www-data "$PERSIST_DIR" "$MEDIA_DIR"
 
 # Remove completed installation temporary config
 if [ -f "$PERSIST_DIR/pp-config.php" ]; then
