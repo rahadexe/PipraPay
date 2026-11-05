@@ -43,8 +43,13 @@ RUN printf "allow_url_fopen=On\nfile_uploads=On\nmemory_limit=256M\nupload_max_f
 
 WORKDIR /var/www/html
 
-# Set permissions
+COPY . /var/www/html/
+
 RUN chown -R www-data:www-data /var/www/html
+
+EXPOSE 80
+
+CMD ["apache2-foreground"]
 
 EXPOSE 80
 
