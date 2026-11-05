@@ -2,13 +2,14 @@
 FROM php:8.3-apache
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libpng-dev \
     libjpeg62-turbo-dev \
     libfreetype6-dev \
     libzip-dev \
     libcurl4-openssl-dev \
     libmagickwand-dev \
+    libonig-dev \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
@@ -18,7 +19,7 @@ RUN docker-php-ext-configure gd \
     --with-jpeg
 
 # Install required PHP extensions
-RUN docker-php-ext-install -j$(nproc) \
+RUN docker-php-ext-install -j"$(nproc)" \
     bcmath \
     curl \
     gd \
@@ -26,7 +27,7 @@ RUN docker-php-ext-install -j$(nproc) \
     pdo_mysql \
     zip
 
-# Install Imagick (required by PipraPay)
+# Install Imagick
 RUN pecl install imagick \
     && docker-php-ext-enable imagick
 
@@ -41,16 +42,17 @@ RUN sed -i 's/AllowOverride None/AllowOverride All/g' \
 RUN printf "allow_url_fopen=On\nfile_uploads=On\nmemory_limit=256M\nupload_max_filesize=64M\npost_max_size=64M\nmax_execution_time=120\n" \
     > /usr/local/etc/php/conf.d/piprapay.ini
 
+# Application directory
 WORKDIR /var/www/html
 
+# Copy application files
 COPY . /var/www/html/
 
+# Set permissions
 RUN chown -R www-data:www-data /var/www/html
 
+# Expose Apache port
 EXPOSE 80
 
-CMD ["apache2-foreground"]
-
-EXPOSE 80
-
+# Start Apache
 CMD ["apache2-foreground"]
