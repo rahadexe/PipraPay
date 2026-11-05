@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     libjpeg62-turbo-dev \
     libfreetype6-dev \
     libzip-dev \
+    libcurl4-openssl-dev \
     libmagickwand-dev \
     unzip \
     && rm -rf /var/lib/apt/lists/*
