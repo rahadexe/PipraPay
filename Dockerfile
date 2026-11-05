@@ -18,7 +18,7 @@ RUN docker-php-ext-configure gd \
     --with-freetype \
     --with-jpeg
 
-# Install required PHP extensions
+# Install PHP extensions
 RUN docker-php-ext-install -j"$(nproc)" \
     bcmath \
     curl \
@@ -38,7 +38,7 @@ RUN a2enmod rewrite headers setenvif
 RUN sed -i 's/AllowOverride None/AllowOverride All/g' \
     /etc/apache2/apache2.conf
 
-# Trust HTTPS protocol from reverse proxy
+# Trust HTTPS reverse proxy
 RUN printf '%s\n' \
     'SetEnvIfNoCase X-Forwarded-Proto "^https$" HTTPS=on' \
     > /etc/apache2/conf-available/reverse-proxy-https.conf \
@@ -54,28 +54,57 @@ WORKDIR /var/www/html
 # Copy application files
 COPY . /var/www/html/
 
-# Set application permissions
+# Application permissions
 RUN chown -R www-data:www-data /var/www/html
 
 # Persistent configuration directory
 RUN mkdir -p /var/lib/piprapay \
-    && chown www-data:www-data /var/lib/piprapay
+    && chown -R www-data:www-data /var/lib/piprapay
 
-# Startup script for persistent configuration
-RUN printf '%s\n' \
-    '#!/bin/sh' \
-    'if [ ! -f /var/lib/piprapay/pp-config.php ] && [ -f /var/www/html/pp-config.php ] && [ ! -L /var/www/html/pp-config.php ]; then' \
-    '    cp /var/www/html/pp-config.php /var/lib/piprapay/pp-config.php' \
-    'fi' \
-    'if [ -f /var/lib/piprapay/pp-config.php ]; then' \
-    '    ln -sfn /var/lib/piprapay/pp-config.php /var/www/html/pp-config.php' \
-    'fi' \
-    'exec apache2-foreground' \
-    > /usr/local/bin/start-piprapay \
-    && chmod +x /usr/local/bin/start-piprapay
+# Persistent configuration startup script
+RUN cat > /usr/local/bin/start-piprapay <<'EOF'
+#!/bin/sh
+set -eu
+
+APP_DIR="/var/www/html"
+PERSIST_DIR="/var/lib/piprapay"
+
+mkdir -p "$PERSIST_DIR"
+chown -R www-data:www-data "$PERSIST_DIR"
+
+# Remove completed installation temporary config
+if [ -f "$PERSIST_DIR/pp-config.php" ]; then
+    rm -f "$PERSIST_DIR/pp-temp-config.php"
+fi
+
+# Preserve and link configuration files
+for FILE in pp-config.php pp-temp-config.php
+do
+    APP_FILE="$APP_DIR/$FILE"
+    PERSIST_FILE="$PERSIST_DIR/$FILE"
+
+    # Migrate an existing application config if present
+    if [ -f "$APP_FILE" ] && [ ! -L "$APP_FILE" ]; then
+        if [ ! -f "$PERSIST_FILE" ]; then
+            cp -p "$APP_FILE" "$PERSIST_FILE"
+            chown www-data:www-data "$PERSIST_FILE"
+        fi
+        rm -f "$APP_FILE"
+    fi
+
+    # Always create a link to persistent storage
+    if [ ! -L "$APP_FILE" ]; then
+        ln -s "$PERSIST_FILE" "$APP_FILE"
+    fi
+done
+
+exec apache2-foreground
+EOF
+
+RUN chmod +x /usr/local/bin/start-piprapay
 
 # Expose Apache port
 EXPOSE 80
 
-# Start Apache
+# Start application
 CMD ["/usr/local/bin/start-piprapay"]
