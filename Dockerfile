@@ -71,7 +71,8 @@ COPY . /var/www/html/
 
 # Application permissions
 RUN mkdir -p /var/www/html/pp-media/storage \
-    && chown -R www-data:www-data /var/www/html
+    && chown -R www-data:www-data /var/www/html \
+    && chmod 0755 /var/www/html
 
 # Persistent configuration directory
 RUN mkdir -p /var/lib/piprapay \
@@ -89,6 +90,9 @@ MEDIA_DIR="$APP_DIR/pp-media/storage"
 # These commands run after Docker has attached the persistent volumes.
 mkdir -p "$PERSIST_DIR" "$MEDIA_DIR"
 chown -R www-data:www-data "$PERSIST_DIR" "$MEDIA_DIR"
+# The base image uses a sticky, world-writable webroot. Use a normal
+# directory so Linux protected_symlinks permits the PHP worker to read config.
+chmod 0755 "$APP_DIR"
 
 # Remove completed installation temporary config
 if [ -f "$PERSIST_DIR/pp-config.php" ]; then
@@ -114,6 +118,7 @@ do
     if [ ! -L "$APP_FILE" ]; then
         ln -s "$PERSIST_FILE" "$APP_FILE"
     fi
+    chown -h www-data:www-data "$APP_FILE"
 done
 
 exec apache2-foreground
