@@ -32,11 +32,17 @@ RUN pecl install imagick \
     && docker-php-ext-enable imagick
 
 # Enable Apache modules
-RUN a2enmod rewrite headers
+RUN a2enmod rewrite headers setenvif
 
 # Enable .htaccess overrides
 RUN sed -i 's/AllowOverride None/AllowOverride All/g' \
     /etc/apache2/apache2.conf
+
+# Trust HTTPS protocol from the reverse proxy
+RUN printf '%s\n' \
+    'SetEnvIfNoCase X-Forwarded-Proto "^https$" HTTPS=on' \
+    > /etc/apache2/conf-available/reverse-proxy-https.conf \
+    && a2enconf reverse-proxy-https
 
 # PHP configuration
 RUN printf "allow_url_fopen=On\nfile_uploads=On\nmemory_limit=256M\nupload_max_filesize=64M\npost_max_size=64M\nmax_execution_time=120\n" \
